@@ -21,7 +21,6 @@ struct Step {
   std::string from;
   std::string to;
   double metres;
-  double effective;
 };
 
 using Graph = std::unordered_map<std::string, std::vector<Edge>>;
@@ -54,12 +53,6 @@ static Graph make_graph() {
 int main() {
   const Graph graph = make_graph();
 
-  const std::unordered_map<std::string, double> multipliers{
-      {"Low", 1.0},
-      {"Moderate", 1.3},
-      {"High", 1.7}
-  };
-
   crow::App<crow::CORSHandler> app;
 
   app.get_middleware<crow::CORSHandler>()
@@ -76,31 +69,20 @@ int main() {
 
   CROW_ROUTE(app, "/route")
       .methods(crow::HTTPMethod::Post)(
-          [&graph, &multipliers](const crow::request& request) {
+          [&graph](const crow::request& request) {
             auto body = crow::json::load(request.body);
 
             if (!body ||
                 !body.has("source") ||
-                !body.has("destination") ||
-                !body.has("crowd")) {
+                !body.has("destination")) {
               return crow::response(
                   400,
                   crow::json::wvalue{
-                      {"error", "Expected source, destination, and crowd."}});
+                      {"error", "Expected source and destination."}});
             }
 
             const std::string source = body["source"].s();
             const std::string destination = body["destination"].s();
-            const std::string crowd = body["crowd"].s();
-
-            const auto factor = multipliers.find(crowd);
-
-            if (factor == multipliers.end()) {
-              return crow::response(
-                  400,
-                  crow::json::wvalue{
-                      {"error", "Crowd must be Low, Moderate, or High."}});
-            }
 
             if (!graph.count(source) || !graph.count(destination)) {
               return crow::response(
@@ -125,7 +107,7 @@ int main() {
             costs[source] = 0;
             queue.push({0, source});
 
-            // Dijkstra minimizes the sum of distance * crowd multiplier.
+            // Dijkstra minimizes the total walking distance.
             while (!queue.empty()) {
               const auto [cost, node] = queue.top();
               queue.pop();
@@ -139,8 +121,7 @@ int main() {
               }
 
               for (const auto& edge : graph.at(node)) {
-                const double candidate =
-                    cost + edge.metres * factor->second;
+                const double candidate = cost + edge.metres;
 
                 if (candidate < costs[edge.to]) {
                   costs[edge.to] = candidate;
@@ -181,8 +162,7 @@ int main() {
               steps.push_back({
                   from,
                   to,
-                  edge->metres,
-                  edge->metres * factor->second
+                  edge->metres
               });
             }
 
@@ -201,20 +181,14 @@ int main() {
               segment["from"] = step.from;
               segment["to"] = step.to;
               segment["distance"] = step.metres;
-              segment["crowd"] = crowd;
-              segment["multiplier"] = factor->second;
-              segment["effectiveCost"] = step.effective;
 
               segmentsJson.emplace_back(std::move(segment));
             }
             result["segments"] = std::move(segmentsJson);
 
             result["distance"] = totalMetres;
-            result["effectiveCost"] = costs[destination];
             result["estimatedMinutes"] =
                 std::round((totalMetres / 80.0) * 10.0) / 10.0;
-            result["crowd"] = crowd;
-            result["multiplier"] = factor->second;
 
             return crow::response(200, result);
           });
@@ -227,3 +201,4 @@ int main() {
       .multithreaded()
       .run();
 }
+

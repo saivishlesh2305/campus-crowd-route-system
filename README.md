@@ -1,6 +1,6 @@
-# Campus Crowd Management and Route Optimization
+# Campus Route Planning and Optimization
 
-A small full-stack project: React + Vite UI, with a C++ HTTP API that runs Dijkstra's algorithm using simulated crowd-adjusted walking costs.
+A small full-stack project: React + Vite UI, with a C++ HTTP API that runs Dijkstra's algorithm to find the shortest walking route through an illustrative campus graph.
 
 > **Distance data is illustrative/simulated and has not been surveyed.** Treat route lengths and the 80 m/min walking-speed estimate as demo values.
 
@@ -42,7 +42,7 @@ npm install
 npm run dev
 ```
 
-Open the local address Vite prints (usually `http://localhost:5173`). Choose a source, destination, and crowd level, then click **Find best route**.
+Open the local address Vite prints (usually `http://localhost:5173`). Type a starting point and destination, or choose a suggestion from the campus locations, then click **Find best route**.
 
 ## Project layout
 
@@ -61,10 +61,10 @@ campus-crowd-route-system/
 
 ## API
 
-`POST /route` accepts:
+`POST /route` accepts a starting point and destination:
 
 ```json
-{"source":"Main","destination":"Library","crowd":"Moderate"}
+{"source":"Main","destination":"Library"}
 ```
 
 Example response:
@@ -73,23 +73,20 @@ Example response:
 {
   "route":["Main","L Block","Library"],
   "segments":[
-    {"from":"Main","to":"L Block","distance":110,"crowd":"Moderate","multiplier":1.3,"effectiveCost":143},
-    {"from":"L Block","to":"Library","distance":60,"crowd":"Moderate","multiplier":1.3,"effectiveCost":78}
+    {"from":"Main","to":"L Block","distance":110},
+    {"from":"L Block","to":"Library","distance":60}
   ],
   "distance":170,
-  "effectiveCost":221,
-  "estimatedMinutes":2.1,
-  "crowd":"Moderate",
-  "multiplier":1.3
+  "estimatedMinutes":2.1
 }
 ```
 
-Valid crowd values are `Low`, `Moderate`, and `High` (multipliers 1.0, 1.3, 1.7). Effective edge cost is distance × multiplier. Dijkstra minimizes effective cost; the response also reports physical distance. Invalid nodes/crowd values return HTTP 400. `GET /health` returns `{"status":"ok"}`.
+The route minimizes total distance. Estimated time uses the illustrative 80 m/min walking-speed estimate. Source and destination must match locations in the campus graph; invalid locations return HTTP 400. `GET /health` returns `{"status":"ok"}`.
 
 Try the API from a third PowerShell window:
 
 ```powershell
-Invoke-RestMethod -Method Post -Uri http://localhost:8080/route -ContentType 'application/json' -Body '{"source":"Main","destination":"Library","crowd":"Moderate"}'
+Invoke-RestMethod -Method Post -Uri http://localhost:8080/route -ContentType 'application/json' -Body '{"source":"Main","destination":"Library"}'
 ```
 
 ## Graph used by the demo
@@ -139,3 +136,4 @@ git push -u origin main
 3. Deploy. Vite's default build settings (`npm run build`, output `dist`) are already suitable.
 
 Free hosting may sleep or cold-start, so the first API request can take a little longer. This is a classroom demo; distances and walking estimates are simulated. No database or live crowd sensor is connected.
+
