@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { ArrowDown, ArrowRight, ArrowUpRight, Clock3, Footprints, LocateFixed, Map, MapPin, Navigation, RefreshCw, Route, Sparkles, Users } from 'lucide-react'
+import React, { useMemo, useState } from 'react'
+import { ArrowRight, ArrowUpRight, Clock3, Footprints, LocateFixed, Map, MapPin, Navigation, RefreshCw, Route, Sparkles } from 'lucide-react'
 import './App.css'
 
 const nodes = [
@@ -15,7 +15,6 @@ const edges = [
   ['Open Audit','Canteen',85], ['A Block','Canteen',55], ['Library','Cricket Ground',100],
   ['Cricket Ground','Football Ground',130], ['Football Ground','Canteen',95],
 ]
-const crowds = [{ id: 'Low', factor: '1.0×', text: 'Quiet paths' }, { id: 'Moderate', factor: '1.3×', text: 'Some activity' }, { id: 'High', factor: '1.7×', text: 'Busy paths' }]
 const API = (import.meta.env.VITE_API_URL || 'http://localhost:8080').replace(/\/$/, '')
 
 function CampusMap({ route }) {
@@ -42,14 +41,19 @@ function CampusMap({ route }) {
 }
 
 export default function App() {
-  const [source, setSource] = useState('Main'), [destination, setDestination] = useState('Library'), [crowd, setCrowd] = useState('Moderate')
+  const [source, setSource] = useState('Main'), [destination, setDestination] = useState('Library')
   const [result, setResult] = useState(null), [error, setError] = useState(''), [loading, setLoading] = useState(false)
-  const ready = useMemo(() => source !== destination, [source,destination])
+  const ready = useMemo(() => source.trim() !== '' && destination.trim() !== '' && source.trim() !== destination.trim(), [source,destination])
   async function findRoute() {
-    if (!ready) { setError('Choose two different locations to plan a route.'); return }
+    if (!ready) { setError('Enter two different locations to plan a route.'); return }
+    const validLocations = new Set(nodes.map(n => n.id))
+    if (!validLocations.has(source.trim()) || !validLocations.has(destination.trim())) {
+      setError('Choose a campus location from the suggestions. The route planner only knows the locations shown on the map.')
+      return
+    }
     setLoading(true); setError('')
     try {
-      const response = await fetch(`${API}/route`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({source,destination,crowd}) })
+      const response = await fetch(`${API}/route`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({source:source.trim(),destination:destination.trim()}) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'The route request failed.')
       setResult(data)
@@ -62,27 +66,27 @@ export default function App() {
       <div className="top-status"><span className="status-dot"/> DEMO MODE <span className="top-divider"/> <span className="sim-pill">SIMULATED DATA</span></div>
       <button className="help-button" onClick={()=>document.getElementById('about').scrollIntoView({behavior:'smooth'})}>About this demo <ArrowUpRight size={15}/></button>
     </header>
-    <section className="hero" id="top"><div className="eyebrow"><Sparkles size={14}/> SMARTER CAMPUS MOVEMENT</div><h1>Find your way.<br/><span>Skip the crowd.</span></h1><p>Choose where you’re headed and we’ll map the best route across campus, with crowd levels factored in.</p></section>
+    <section className="hero" id="top"><div className="eyebrow"><Sparkles size={14}/> SMARTER CAMPUS MOVEMENT</div><h1>Find your way.<br/><span>Across campus.</span></h1><p>Enter your starting point and destination to find the shortest connected walking route.</p></section>
     <section className="planner-grid">
       <aside className="control-card"><div className="card-heading"><div><span className="step-label">YOUR JOURNEY</span><h2>Plan a route</h2></div><span className="heading-icon"><Navigation size={19}/></span></div>
-        <label className="field-label" htmlFor="start">STARTING POINT</label><div className="select-wrap"><span className="select-indicator start-indicator"/><select id="start" value={source} onChange={e=>{setSource(e.target.value);setResult(null)}}>{nodes.map(n=><option key={n.id}>{n.id}</option>)}</select><ArrowDown size={16}/></div>
+        <label className="field-label" htmlFor="start">STARTING POINT</label><div className="select-wrap"><span className="select-indicator start-indicator"/><input id="start" list="campus-locations" value={source} placeholder="Type or choose a location" autoComplete="off" onChange={e=>{setSource(e.target.value);setResult(null);setError('')}} /></div>
         <button className="swap-button" aria-label="Swap start and destination" onClick={swap}><ArrowUpRight size={15}/></button>
-        <label className="field-label destination-label" htmlFor="destination">DESTINATION</label><div className="select-wrap"><span className="select-indicator end-indicator"/><select id="destination" value={destination} onChange={e=>{setDestination(e.target.value);setResult(null)}}>{nodes.map(n=><option key={n.id}>{n.id}</option>)}</select><ArrowDown size={16}/></div>
-        <div className="crowd-heading"><span className="field-label">CROWD LEVEL</span><span className="live-label"><span className="tiny-dot"/> SIMULATED</span></div>
-        <div className="crowd-options">{crowds.map(c=><button key={c.id} className={`crowd-option ${crowd===c.id?'selected':''} crowd-${c.id.toLowerCase()}`} onClick={()=>{setCrowd(c.id);setResult(null)}}><span className="crowd-top"><span>{c.id}</span><b>{c.factor}</b></span><small>{c.text}</small></button>)}</div>
+        <label className="field-label destination-label" htmlFor="destination">DESTINATION</label><div className="select-wrap"><span className="select-indicator end-indicator"/><input id="destination" list="campus-locations" value={destination} placeholder="Type or choose a location" autoComplete="off" onChange={e=>{setDestination(e.target.value);setResult(null);setError('')}} /></div>
+        <datalist id="campus-locations">{nodes.map(n=><option key={n.id} value={n.id}/>)}</datalist>
         <button className="find-button" disabled={loading} onClick={findRoute}>{loading?<><RefreshCw size={17} className="spin"/> Finding route…</>:<>Find best route <ArrowRight size={17}/></>}</button>
         {error && <div className="error-message" role="alert">{error}</div>}
-        <p className="algorithm-note"><span className="algorithm-icon">D</span><span><b>Powered by Dijkstra’s algorithm</b><br/>Finds the lowest crowd-adjusted path.</span></p>
+        <p className="algorithm-note"><span className="algorithm-icon">D</span><span><b>Powered by Dijkstra’s algorithm</b><br/>Finds the shortest-distance path.</span></p>
       </aside>
       <section className="map-card"><div className="map-header"><div><span className="step-label">CAMPUS OVERVIEW</span><h2>CBIT campus map <span className="map-tag"><Map size={12}/> ILLUSTRATIVE</span></h2></div><span className="map-location"><MapPin size={15}/> Gandipet, Hyderabad</span></div>
         <CampusMap route={result}/>
-        <div className="map-footer"><span><span className="footer-icon"><Users size={15}/></span>Crowd-adjusted pathfinding</span><span><span className="footer-icon"><LocateFixed size={15}/></span>10 locations · 13 paths</span></div>
+        <div className="map-footer"><span><span className="footer-icon"><LocateFixed size={15}/></span>10 locations · 13 paths</span><span>Shortest-distance pathfinding</span></div>
       </section>
     </section>
-    {result && <section className="results-card"><div className="result-title"><div><span className="step-label">YOUR RECOMMENDED ROUTE</span><h2>{result.route[0]} <ArrowRight size={18}/> {result.route.at(-1)}</h2></div><span className={`result-crowd ${crowd.toLowerCase()}`}><Users size={14}/>{crowd} crowd · {result.multiplier}×</span></div>
-      <div className="metrics"><div className="metric"><span className="metric-icon"><Footprints size={17}/></span><span><b>{result.distance} m</b><small>Walking distance</small></span></div><div className="metric"><span className="metric-icon"><Sparkles size={17}/></span><span><b>{Number(result.effectiveCost).toFixed(0)} pts</b><small>Effective route cost</small></span></div><div className="metric"><span className="metric-icon"><Clock3 size={17}/></span><span><b>~{result.estimatedMinutes} min</b><small>Estimated walking time</small></span></div></div>
+    {result && <section className="results-card"><div className="result-title"><div><span className="step-label">YOUR RECOMMENDED ROUTE</span><h2>{result.route[0]} <ArrowRight size={18}/> {result.route.at(-1)}</h2></div></div>
+      <div className="metrics"><div className="metric"><span className="metric-icon"><Footprints size={17}/></span><span><b>{result.distance} m</b><small>Walking distance</small></span></div><div className="metric"><span className="metric-icon"><Clock3 size={17}/></span><span><b>~{result.estimatedMinutes} min</b><small>Estimated walking time</small></span></div></div>
       <div className="route-steps">{result.route.map((place,i)=><span className={`route-place ${i===0?'route-start':''} ${i===result.route.length-1?'route-end':''}`} key={place}>{i>0&&<i/>}{place}</span>)}</div><p className="estimate-note">Time estimate assumes a steady 80 m/min walking pace. All values are illustrative.</p>
     </section>}
-    <footer id="about"><span>Campus Flow <b>·</b> Student project demo</span><span>Route choices are simulated and do not represent live crowd conditions.</span></footer>
+    <footer id="about"><span>Campus Flow <b>·</b> Student project demo</span><span>Campus paths and distances are illustrative, not surveyed.</span></footer>
   </main>
 }
+
